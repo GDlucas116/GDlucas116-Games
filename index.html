@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D FPS Shooter Game</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; background: black; }
+    canvas { display: block; }
+    #score, #timer {
+      position: absolute;
+      top: 10px;
+      color: white;
+      font-size: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    #score { left: 50%; transform: translateX(-50%); }
+    #timer { left: 10px; }
+  </style>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <div id="timer">Time: 30</div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    let scene, camera, renderer, player, enemy, gun;
+    let score = 0;
+    let bullets = [];
+    let keys = {};
+    let moveSpeed = 0.2;
+    let timeLeft = 30;
+    let timerInterval;
+
+    function init() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Grid floor
+      let floor = new THREE.GridHelper(50, 50);
+      scene.add(floor);
+
+      // Player setup
+      player = new THREE.Object3D();
+      player.position.set(0, 2, 5);
+      scene.add(player);
+      camera.position.set(0, 0, 0);
+      player.add(camera);
+
+      // Gun mesh
+      gun = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.2, 1),
+        new THREE.MeshStandardMaterial({ color: "gray" })
+      );
+      gun.position.set(0.5, -0.5, -1);
+      camera.add(gun);
+
+      // Enemy setup
+      enemy = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 3, 2),
+        new THREE.MeshStandardMaterial({ color: "red" })
+      );
+      enemy.position.set(0, 1.5, -10);
+      scene.add(enemy);
+
+      // Light
+      let light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(5, 10, 7.5);
+      scene.add(light);
+
+      // Controls
+      document.body.addEventListener("click", () => document.body.requestPointerLock());
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("click", shoot);
+      document.addEventListener("keydown", (e) => keys[e.key] = true);
+      document.addEventListener("keyup", (e) => keys[e.key] = false);
+
+      startTimer();
+      animate();
+    }
+
+    function onMouseMove(event) {
+      if (document.pointerLockElement === document.body) {
+        const sensitivity = 0.002;
+        player.rotation.y -= event.movementX * sensitivity;
+        camera.rotation.x -= event.movementY * sensitivity;
+        camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+      }
+    }
+
+    function shoot() {
+      let bullet = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 8, 8),
+        new THREE.MeshStandardMaterial({ color: "white" })
+      );
+      let bulletStart = new THREE.Vector3();
+      camera.getWorldPosition(bulletStart);
+      bullet.position.copy(bulletStart);
+
+      let direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      bullet.velocity = direction.multiplyScalar(0.5);
+
+      bullets.push(bullet);
+      scene.add(bullet);
+
+      gun.position.z -= 0.2;
+      setTimeout(() => gun.position.z += 0.2, 100);
+    }
+
+    function update() {
+      if (keys["w"]) movePlayer(0, 0, -moveSpeed);
+      if (keys["s"]) movePlayer(0, 0, moveSpeed);
+      if (keys["a"]) movePlayer(-moveSpeed, 0, 0);
+      if (keys["d"]) movePlayer(moveSpeed, 0, 0);
+
+      bullets.forEach((bullet, index) => {
+        bullet.position.add(bullet.velocity);
+        if (bullet.position.distanceTo(enemy.position) < 2) {
+          score++;
+          document.getElementById("score").innerText = "Score: " + score;
+          bullets.splice(index, 1);
+          scene.remove(bullet);
+          enemy.position.set((Math.random() - 0.5) * 10, 1.5, -10);
+        }
+      });
+    }
+
+    function movePlayer(x, y, z) {
+      let direction = new THREE.Vector3(x, y, z);
+      direction.applyQuaternion(player.quaternion);
+      player.position.add(direction);
+    }
+
+    function startTimer() {
+      timeLeft = 30;
+      document.getElementById("timer").innerText = "Time: " + timeLeft;
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById("timer").innerText = "Time: " + timeLeft;
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          endGame();
+        }
+      }, 1000);
+    }
+
+    function endGame() {
+      alert("Time's Up!");
+      resetGame();
+    }
+
+    function resetGame() {
+      score = 0;
+      document.getElementById("score").innerText = "Score: " + score;
+      player.position.set(0, 2, 5);
+      enemy.position.set(0, 1.5, -10);
+      bullets.forEach(bullet => scene.remove(bullet));
+      bullets = [];
+      startTimer();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      update();
+      renderer.render(scene, camera);
+    }
+
+    init();
+  </script>
+</body>
+</html>
